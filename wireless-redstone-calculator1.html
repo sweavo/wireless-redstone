@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireless Redstone Calculator</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            background-color: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #569cd6;
+            text-align: center;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+        button {
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #1177bb;
+        }
+        .result {
+            background-color: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .result-title {
+            color: #4ec9b0;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .result-content {
+            font-size: 18px;
+            color: #ce9178;
+        }
+        .debug-output {
+            background-color: #1e1e1e;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .debug-title {
+            color: #dcdcaa;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .tick-info {
+            margin: 5px 0;
+            padding: 5px;
+            background-color: #2d2d30;
+            border-radius: 3px;
+        }
+        .tick-number {
+            color: #569cd6;
+            font-weight: bold;
+        }
+        .warning {
+            color: #f48771;
+            background-color: #2d2d30;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #f48771;
+        }
+        .instructions {
+            background-color: #2d2d30;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #4ec9b0;
+        }
+        .instructions h3 {
+            color: #4ec9b0;
+            margin-top: 0;
+        }
+        .example {
+            background-color: #1e1e1e;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Wireless Redstone Calculator</h1>
+
+    <div class="instructions">
+        <h3>Instructions</h3>
+        <p>Enter redstone chains, one per line. Each chain consists of repeaters (R0-R3) and comparators (C).</p>
+        <p><strong>Format:</strong> Each line contains combinations of:</p>
+        <ul>
+            <li><code>R0, R1, R2, R3</code> - Repeaters with delays 0-3</li>
+            <li><code>C</code> - Comparators</li>
+        </ul>
+        <div class="example">
+            <strong>Example input:</strong><br>
+            R1R2<br>
+            R2R1<br>
+            R0R3
+        </div>
+    </div>
+
+    <div class="container">
+        <label for="input">Redstone Chains (one per line):</label>
+        <textarea id="input"></textarea>
+        <button onclick="calculate()">Calculate Order</button>
+    </div>
+
+    <div id="result" class="result" style="display: none;">
+        <div class="result-title">Final Update Order:</div>
+        <div id="resultContent" class="result-content"></div>
+    </div>
+
+    <div id="warning" class="warning" style="display: none;"></div>
+
+    <div id="debugOutput" class="debug-output" style="display: none;">
+        <div class="debug-title">Debug Output - Tick by Tick Processing:</div>
+        <div id="debugContent"></div>
+    </div>
+
+    <script>
+        function calculate() {
+            const input = document.getElementById('input').value.trim();
+            if (!input) {
+                alert('Please enter some redstone chains.');
+                return;
+            }
+
+            const lines = input.split('\n').filter(line => line.trim());
+            const result = calculateWirelessRedstone(lines);
+
+            displayResults(result);
+        }
+
+        function calculateWirelessRedstone(lines) {
+            // Assign line names (A, B, C, ...)
+            const lineNames = lines.map((_, i) => String.fromCharCode(65 + i));
+
+            // Initialize tick map
+            const tickMap = new Map();
+            const debugLog = [];
+
+            // Queue initial updates for each line
+            for (let i = 0; i < lines.length; i++) {
+                const lineName = lineNames[i];
+                const line = lines[i].trim();
+                if (!tickMap.has(0)) {
+                    tickMap.set(0, []);
+                }
+                tickMap.get(0).push([lineName, line]);
+            }
+
+            // Regular expression to match redstone elements
+            const elementRegex = /^(R[0-3]|C)/;
+
+            // Process the tick map
+            while ( tickMap.size > 0) {
+
+                // Get the earliest tick
+                const currentTick = Math.min(...tickMap.keys());
+                const updates = tickMap.get(currentTick);
+                tickMap.delete(currentTick);
+
+                // Debug log for this tick
+                const tickDebug = {
+                    tick: currentTick,
+                    updates: [...updates],
+                    processed: []
+                };
+
+                for (const [lineName, tail] of updates) {
+                    if (!tail) {
+                        tickDebug.processed.push(`${lineName}: (empty tail)`);
+                        continue; // No more elements to process
+                    }
+
+                    const match = tail.match(elementRegex);
+                    if (!match) {
+                        tickDebug.processed.push(`${lineName}: Warning - Invalid element: ${tail}`);
+                        continue;
+                    }
+
+                    const element = match[0];
+                    const remainingTail = tail.slice(element.length);
+
+                    let nextTick;
+                    if (element.startsWith('R')) {
+                        const delay = parseInt(element[1]);
+                        nextTick = currentTick + (1 + delay) * 2;
+                        tickDebug.processed.push(`${lineName}: ${element} → tick ${nextTick}, remaining: "${remainingTail}"`);
+                    } else if (element.startsWith('C')) {
+                        nextTick = currentTick + 2;
+                        tickDebug.processed.push(`${lineName}: ${element} → tick ${nextTick}, remaining: "${remainingTail}"`);
+                    }
+                    tickMap.set(nextTick, (tickMap.get(nextTick) || []).concat([[lineName, remainingTail]]));
+
+                }
+
+                debugLog.push(tickDebug);
+            }
+
+            // Check final state
+            const finalTick = Math.max(...Array.from(tickMap.keys()).concat([0]));
+            const finalUpdates = tickMap.get(finalTick) || [];
+
+            let isValid = true;
+            let warningMsg = '';
+
+            // Check if all line names are present and have empty tails
+            const finalLineNames = new Set(finalUpdates.map(([lineName, _]) => lineName));
+            const expectedLineNames = new Set(lineNames);
+
+            return {
+                isValid,
+                warningMsg,
+                finalOrder: finalUpdates.map(([lineName, _]) => lineName),
+                debugLog,
+                tickMap: Object.fromEntries(tickMap)
+            };
+        }
+
+        function displayResults(result) {
+            // Show result
+            const resultDiv = document.getElementById('result');
+            const resultContent = document.getElementById('resultContent');
+            const warningDiv = document.getElementById('warning');
+            const debugDiv = document.getElementById('debugOutput');
+            const debugContent = document.getElementById('debugContent');
+
+            if (result.isValid) {
+                resultDiv.style.display = 'block';
+                resultContent.textContent = result.finalOrder.join(',');
+                warningDiv.style.display = 'none';
+            } else {
+                resultDiv.style.display = 'block';
+                resultContent.textContent = result.finalOrder.join(',') + ' (with warnings)';
+                warningDiv.style.display = 'block';
+                warningDiv.textContent = 'Warning: ' + result.warningMsg;
+            }
+
+            // Show debug output
+            debugDiv.style.display = 'block';
+            debugContent.innerHTML = '';
+
+            result.debugLog.forEach(tickInfo => {
+                const tickDiv = document.createElement('div');
+                tickDiv.className = 'tick-info';
+
+                let html = `<div class="tick-number">Tick ${tickInfo.tick}:</div>`;
+                html += `<div>Processing: ${tickInfo.updates.map(([name, tail]) => `${name}:"${tail}"`).join(', ')}</div>`;
+
+                if (tickInfo.processed.length > 0) {
+                    html += '<div>Results:</div>';
+                    tickInfo.processed.forEach(proc => {
+                        html += `<div style="margin-left: 20px;">• ${proc}</div>`;
+                    });
+                }
+
+                tickDiv.innerHTML = html;
+                debugContent.appendChild(tickDiv);
+            });
+
+            // Show final tick map if there are remaining items
+            if (Object.keys(result.tickMap).length > 0) {
+                const finalDiv = document.createElement('div');
+                finalDiv.className = 'tick-info';
+                finalDiv.innerHTML = '<div class="tick-number">Final Tick Map:</div>' +
+                    Object.entries(result.tickMap).map(([tick, updates]) =>
+                        `<div>Tick ${tick}: ${updates.map(([name, tail]) => `${name}:"${tail}"`).join(', ')}</div>`
+                    ).join('');
+                debugContent.appendChild(finalDiv);
+            }
+        }
+
+    </script>
+</body>
+</html>

@@ -37,23 +37,21 @@ During operation, it's possible that some lines are missing updates in a given t
 """
 import re
 
-RE_ELEMENT = re.compile(r'^(R\d|C)')
-
+RE_ELEMENT = re.compile(r'^(R[0-3]]|C)')
 
 if __name__ == "__main__":
     import sys
-    from collections import defaultdict
 
     # Read input lines and assign line-names
     lines = [line.strip() for line in sys.stdin if line.strip()]
     line_names = [chr(ord('A') + i) for i in range(len(lines))]
 
     # Initialize the tick map
-    tick_map = defaultdict(list)
+    tick_map = {}
 
     # Queue the initial updates for each line
     for line_name, line in zip(line_names, lines):
-        tick_map[0].append((line_name, line))
+        tick_map.setdefault(0, []).append((line_name, line))
 
     # Process the tick map
     more_to_process = True
@@ -77,11 +75,11 @@ if __name__ == "__main__":
 
             if element.startswith('R'):
                 delay = int(element[1])
-                next_tick = current_tick + delay
-                tick_map[next_tick].append((line_name, remaining_tail))
+                next_tick = current_tick + (1+delay) * 2
+                tick_map.setdefault(next_tick, []).append((line_name, remaining_tail))
             elif element.startswith('C'):
-                next_tick = current_tick + 1
-                tick_map[next_tick].append((line_name, remaining_tail))
+                next_tick = current_tick + 2
+                tick_map.setdefault(next_tick, []).append((line_name, remaining_tail))
             else:
                 print(f"Warning: Invalid element '{element}' in line '{line_name}'", file=sys.stderr)
 
@@ -96,5 +94,5 @@ if __name__ == "__main__":
             print(f"Tick {tick}: {updates}", file=sys.stderr)
     else:
         # Output the order of line-names in the final tick
-        output_order = [line_name for line_name, _ in sorted(final_updates)]
+        output_order = [line_name for line_name, _ in final_updates]
         print(",".join(output_order))
